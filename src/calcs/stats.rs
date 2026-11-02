@@ -55,6 +55,12 @@ pub fn register(v: &mut Vec<Calc>) {
             "The middle value when sorted (or the average of the two middle values).",
             &["Numbers (list)"],
             |x| {
+                // Guard first (v0.9.0): an empty list is an error,
+                // never an index/unwrap panic — the indexing below
+                // is only reached with at least one value.
+                if x.is_empty() {
+                    return Err("Median needs at least one value — the list is empty.".into());
+                }
                 Ok(format!(
                     "Median: {}. Smallest: {}. Largest: {}.",
                     nd(median(x), 6),
