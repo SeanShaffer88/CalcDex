@@ -1,0 +1,5 @@
+# Static CRT for Windows MSVC builds (contract: static runtime linkage
+# mandatory for t3) — the shipped CalcDex.exe must not depend on a
+# separately installed VC++ redistributable.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
