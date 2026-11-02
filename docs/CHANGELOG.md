@@ -1,6 +1,6 @@
 # Changelog — CalcDex
 
-## 0.9.0 — Unreleased
+## 0.9.0 — 2026-11-02
 
 **Engineering-contract conformance release.** No calculator
 behaviour changes; the work is where the program keeps its
