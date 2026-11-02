@@ -27,6 +27,21 @@ pub mod settings;
 pub mod students;
 pub mod teachers;
 
+/// Below this window width the history rail collapses: the header
+/// LOG toggle then switches the centre to the log view. The width is
+/// measured on the physical screen (see `history_rail_visible`).
+pub const HISTORY_RAIL_MIN_WIDTH: f32 = 1100.0;
+
+/// Whether the history rail fits beside the mode rail and the centre.
+/// `content_width` is the window's layout width in points and
+/// `zoom_factor` the UI zoom (1.5 in classroom projection mode). The
+/// product is the physical width, so turning projection on — which
+/// enlarges everything — never makes the rail vanish from a window
+/// that showed it at normal size: the panes give way instead.
+pub fn history_rail_visible(content_width: f32, zoom_factor: f32) -> bool {
+    content_width * zoom_factor >= HISTORY_RAIL_MIN_WIDTH
+}
+
 pub type CalcFn = Box<dyn Fn(&[f64]) -> Result<String, String> + Sync + Send>;
 /// A text-input calculator (v0.4.0 expression calculator): the second
 /// argument is the angle mode, true = degrees, false = radians.
