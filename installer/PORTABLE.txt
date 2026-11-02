@@ -3,10 +3,15 @@ CalcDex — portable build
 Just run CalcDex.exe. Nothing is installed. No internet is used
 unless you press Check for updates in the HELP panel (or switch on
 the startup update check there — it is off by default).
-Delete the folder to remove it. The one thing the program writes is its
-calculation log: every successful calculation is saved automatically to
-%APPDATA%\CalcDex\history.txt (view it with the LOG button, or with
-CalcDex.exe --log; empty it with CalcDex.exe --clear-log).
+Delete the folder to remove it completely. Everything the program
+writes — settings, the calculation log (every successful calculation,
+saved automatically) and saved class examples — lives in the data
+folder beside CalcDex.exe, and nowhere else. (Files from versions
+before 0.9.0, kept in %APPDATA%\CalcDex, are copied across on first
+run and the originals left untouched.) View the log with the LOG
+button, or with CalcDex.exe --log; empty it with
+CalcDex.exe --clear-log. CalcDex.exe --clean removes all of the
+program's files from the data folder.
 
 Every calculator also works from the command line, for example:
   CalcDex.exe --list

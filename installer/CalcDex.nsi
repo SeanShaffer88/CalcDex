@@ -1,7 +1,12 @@
 ; CalcDex installer — per-user, no admin needed.
+; The release workflow passes /DAppVersion=<version>; the
+; default below is the current version for hand builds.
+!ifndef AppVersion
+  !define AppVersion "0.9.0"
+!endif
 Unicode true
 Name "CalcDex"
-OutFile "CalcDex-Setup-0.8.0.exe"
+OutFile "..\dist\CalcDex-Setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\CalcDex"
 RequestExecutionLevel user
 Icon "..\assets\icon.ico"
@@ -22,7 +27,7 @@ Section "Install"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\CalcDex" "DisplayName" "CalcDex"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\CalcDex" "UninstallString" "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\CalcDex" "DisplayVersion" "0.8.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\CalcDex" "DisplayVersion" "${AppVersion}"
 SectionEnd
 
 Section "Uninstall"
