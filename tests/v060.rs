@@ -538,3 +538,19 @@ fn set_entries_hold_display_tokens_for_dates() {
     let line = calcdex::teachers::entry_problem_line(&e).unwrap();
     assert!(line.contains("Birth Date = 04/23/1988"), "{line}");
 }
+
+// ---------- history rail under projection zoom (field fix) ----------
+
+#[test]
+fn history_rail_visibility_is_judged_on_physical_width() {
+    use calcdex::history_rail_visible;
+    // Normal size: the 1100 pt threshold applies as before.
+    assert!(history_rail_visible(1200.0, 1.0));
+    assert!(!history_rail_visible(1000.0, 1.0));
+    assert!(!history_rail_visible(760.0, 1.0));
+    // The field case: a wide physical window at 1.5x projection zoom
+    // has ~1045 pt of layout width, yet the rail must stay visible.
+    assert!(history_rail_visible(1045.0, 1.5));
+    // A genuinely small screen stays collapsed even zoomed.
+    assert!(!history_rail_visible(700.0, 1.5));
+}

@@ -1,5 +1,16 @@
 # Changelog — CalcDex
 
+## Unreleased
+
+### Fixed
+- **Projection mode keeps the History rail.** Turning on classroom
+  projection enlarges the whole window (1.5x), which used to make
+  the History rail drop away and the top row run off the right edge
+  on ordinary screens. The rail's fit is now judged on the physical
+  window width, both side rails start narrower while projection is
+  on so all three panes stay on screen together, and the top row
+  wraps instead of clipping.
+
 ## 0.9.0 — 2026-11-02
 
 **Engineering-contract conformance release.** No calculator

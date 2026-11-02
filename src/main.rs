@@ -3235,10 +3235,10 @@ const MUTED_PROJ: egui::Color32 = egui::Color32::from_rgb(0xb8, 0xb8, 0xb8);
 const DISPLAY_BG: egui::Color32 = egui::Color32::from_rgb(0x0c, 0x0c, 0x0c);
 /// Raised fill for chips and raised controls (#181818).
 const RAISED: egui::Color32 = egui::Color32::from_rgb(0x18, 0x18, 0x18);
-/// Below this window width (points) the history rail collapses: the
-/// header LOG toggle then switches the centre to the log view, as in
-/// v0.1.x. At the 760 pt minimum window the rail is always collapsed.
-const HISTORY_RAIL_MIN_WIDTH: f32 = 1100.0;
+// The history rail's width threshold lives in the library
+// (`calcdex::HISTORY_RAIL_MIN_WIDTH`, with the pure visibility rule
+// `calcdex::history_rail_visible`): it is judged on the physical
+// window width, so projection zoom never hides the rail.
 
 /// One mode-rail row: short label on the left, shortcut hint on the
 /// right, full category name in the hover tooltip. Selected styling
@@ -3864,7 +3864,10 @@ impl eframe::App for App {
                 .map(|idx| !self.calcs[idx].list && self.calcs[idx].text_run.is_none())
                 .unwrap_or(false);
 
-        let wide = ctx.content_rect().width() >= HISTORY_RAIL_MIN_WIDTH;
+        // Judged on the physical width (layout points x zoom), so the
+        // history rail that fits at normal size still fits — and is
+        // still shown — in projection mode (field report, 2026-11-02).
+        let wide = calcdex::history_rail_visible(ctx.content_rect().width(), ctx.zoom_factor());
         let mut hist_restore: Option<LogEntry> = None;
         let mut hist_clear = false;
         let mut hist_restore_cleared = false;
@@ -3873,7 +3876,11 @@ impl eframe::App for App {
         let mut hist_export: Option<(LogFilter, String)> = None;
 
         egui::TopBottomPanel::top("top").show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            // Wrapped, not plain horizontal: at projection zoom the
+            // logical window is narrower and this long row (title,
+            // BATCH/HELP, the FORMAT group, LOG) used to run off the
+            // right edge and clip (field report, 2026-11-02).
+            ui.horizontal_wrapped(|ui| {
                 ui.label(
                     egui::RichText::new("CALCDEX")
                         .color(GREEN)
@@ -4166,10 +4173,14 @@ impl eframe::App for App {
         });
 
         // ---- Mode rail (far left) ----
+        // In projection mode both rails start narrower, so the centre
+        // keeps a workable share of the zoomed (logically smaller)
+        // window and all three panes stay on screen together.
+        let proj = self.settings.projection;
         egui::SidePanel::left("modes")
             .resizable(true)
-            .default_width(178.0)
-            .width_range(140.0..=240.0)
+            .default_width(if proj { 150.0 } else { 178.0 })
+            .width_range(if proj { 120.0..=200.0 } else { 140.0..=240.0 })
             .show(ctx, |ui| {
                 ui.label(
                     egui::RichText::new("SEARCH")
@@ -4292,8 +4303,8 @@ impl eframe::App for App {
         if self.show_log && wide {
             egui::SidePanel::right("history")
                 .resizable(true)
-                .default_width(300.0)
-                .width_range(240.0..=420.0)
+                .default_width(if proj { 260.0 } else { 300.0 })
+                .width_range(if proj { 220.0..=340.0 } else { 240.0..=420.0 })
                 .show(ctx, |ui| {
                     let out = history_ui(
                         ui,
