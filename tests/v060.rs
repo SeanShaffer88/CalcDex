@@ -364,9 +364,12 @@ fn projection_setting_round_trips_and_old_files_load() {
 // ---------- CLI end-to-end (binary) ----------
 
 fn cli(args: &[&str], appdata: &std::path::Path) -> std::process::Output {
+    // v0.9.0: the app's files live in `data\` beside the exe;
+    // CALCDEX_DATA_DIR points each run at the temp dir instead,
+    // keeping the test fully isolated.
     std::process::Command::new(env!("CARGO_BIN_EXE_CalcDex"))
         .args(args)
-        .env("APPDATA", appdata)
+        .env("CALCDEX_DATA_DIR", appdata)
         .output()
         .unwrap()
 }
@@ -462,7 +465,7 @@ fn cli_v060_end_to_end() {
     // --projection (#21) writes the shared setting.
     let out = cli(&["--projection", "on"], &dir);
     assert!(out.status.success(), "{}", stdout(&out));
-    let settings_text = std::fs::read_to_string(dir.join("CalcDex").join("settings.txt")).unwrap();
+    let settings_text = std::fs::read_to_string(dir.join("settings.txt")).unwrap();
     assert!(settings_text.contains("projection=on"), "{settings_text}");
     let out = cli(&["--projection"], &dir);
     assert!(stdout(&out).contains("is ON"), "{}", stdout(&out));

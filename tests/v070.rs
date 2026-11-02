@@ -432,9 +432,12 @@ fn help_text_covers_the_scientists_tools() {
 // ---------- CLI end-to-end (binary) ----------
 
 fn cli(args: &[&str], appdata: &std::path::Path) -> std::process::Output {
+    // v0.9.0: the app's files live in `data\` beside the exe;
+    // CALCDEX_DATA_DIR points each run at the temp dir instead,
+    // keeping the test fully isolated.
     std::process::Command::new(env!("CARGO_BIN_EXE_CalcDex"))
         .args(args)
-        .env("APPDATA", appdata)
+        .env("CALCDEX_DATA_DIR", appdata)
         .output()
         .unwrap()
 }
@@ -520,6 +523,6 @@ fn cli_v070_end_to_end() {
     let out = cli(&["--log-tag", "9", "x"], &dir);
     assert!(!out.status.success());
     // The pre-edit backup exists beside the log.
-    assert!(dir.join("CalcDex").join("history-edit-backup.txt").exists());
+    assert!(dir.join("history-edit-backup.txt").exists());
     let _ = std::fs::remove_dir_all(&dir);
 }

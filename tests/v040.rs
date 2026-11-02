@@ -413,9 +413,12 @@ fn settings_display_round_trip_and_legacy() {
 // ---------- CLI end-to-end (binary) ----------
 
 fn cli(args: &[&str], appdata: &std::path::Path) -> std::process::Output {
+    // v0.9.0: the app's files live in `data\` beside the exe;
+    // CALCDEX_DATA_DIR points each run at the temp dir instead,
+    // keeping the test fully isolated.
     std::process::Command::new(env!("CARGO_BIN_EXE_CalcDex"))
         .args(args)
-        .env("APPDATA", appdata)
+        .env("CALCDEX_DATA_DIR", appdata)
         .output()
         .unwrap()
 }
@@ -434,7 +437,7 @@ fn cli_v040_end_to_end() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert!(String::from_utf8_lossy(&out.stdout).contains("Result: 98"));
-    let hist = std::fs::read_to_string(dir.join("CalcDex").join("history.txt")).unwrap();
+    let hist = std::fs::read_to_string(dir.join("history.txt")).unwrap();
     assert!(hist.contains("Expression Calculator"), "{hist}");
     assert!(hist.contains("2*(3+4)^2"), "{hist}");
 

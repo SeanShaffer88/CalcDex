@@ -292,11 +292,14 @@ fn cli_favourites_and_remembered_inputs_share_the_settings_file() {
     let dir = std::env::temp_dir().join(format!("calcdex-cli-test-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
+    // v0.9.0: the app's files live in `data\` beside the exe;
+    // CALCDEX_DATA_DIR points this run at the temp dir instead,
+    // keeping the test fully isolated.
     let exe = env!("CARGO_BIN_EXE_CalcDex");
     let run = |args: &[&str]| {
         std::process::Command::new(exe)
             .args(args)
-            .env("APPDATA", &dir)
+            .env("CALCDEX_DATA_DIR", &dir)
             .output()
             .unwrap()
     };
@@ -310,7 +313,7 @@ fn cli_favourites_and_remembered_inputs_share_the_settings_file() {
     // A normal CLI run remembers its inputs in the same file.
     let out = run(&["bmi", "70", "175"]);
     assert!(out.status.success());
-    let settings_file = dir.join("CalcDex").join("settings.txt");
+    let settings_file = dir.join("settings.txt");
     let text = std::fs::read_to_string(&settings_file).unwrap();
     assert!(text.contains("favourite=bmi"), "{text}");
     assert!(text.contains("inputs.bmi=70;;175"), "{text}");
