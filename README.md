@@ -436,8 +436,11 @@ has a plain-words tooltip saying what it does — no exceptions
 construction in the code and checked by a test).
 
 **Settings file:** favourites, recent, remembered inputs and the
-display-format choice live in `%APPDATA%\CalcDex\settings.txt` (plain
-text, format documented in the file's code). The window and the
+display-format choice live in `data\settings.txt` beside the
+program (plain text, format documented in the file's code).
+On the first run of v0.9.0 or later, a settings file in the old
+`%APPDATA%\CalcDex` folder is copied into `data\` automatically;
+the original is left untouched as the backup of the move. The window and the
 command line read and write the SAME file — it is the shared
 source of truth, so a calculator you star or run on the command
 line is starred and remembered in the window too.
@@ -459,7 +462,7 @@ calculations) can be found again later:
 - Or from the command line: `CalcDex --log` prints the log,
   `CalcDex --clear-log` empties it (with the same backup) and
   `CalcDex --restore-log` undoes the clear.
-- Entries are kept in `%APPDATA%\CalcDex\history.txt` (plain text:
+- Entries are kept in `data\history.txt` beside the program (plain text:
   time, calculator, inputs — dates in MM/DD/YYYY form — and result).
   Only the newest 500 entries are kept; log timestamps are UTC.
   Failed calculations are never logged.
@@ -484,20 +487,21 @@ it never downloads or installs anything by itself.
 
 ## Install
 
-Release downloads come per architecture — 64-bit (x64), 32-bit
-(x86) and ARM64 — each as an installer plus a portable zip, with
-an MSI for x86/x64 as well:
+Every release ships one 64-bit (x64) build in two forms, plus
+a checksum file:
 
-- `CalcDex-Setup-x64.exe`, `CalcDex-Setup-x86.exe`,
-  `CalcDex-Setup-ARM64.exe` — the installers (per-user, no admin).
-- `CalcDex-Setup-x86_64.msi` — the MSI installer (x64).
-- `CalcDex-Portable-x64.zip`, `CalcDex-Portable-x86.zip`,
-  `CalcDex-Portable-ARM64.zip` — the portable builds: just the
-  .exe plus the license and a short note. Unzip and run.
+- `CalcDex-v{version}-x64-Setup.exe` — the installer (per-user,
+  no admin; installs to %LOCALAPPDATA%\Programs\CalcDex).
+- `CalcDex-v{version}-x64-Portable.zip` — the portable build:
+  the .exe, this README, the license and a short note. Unzip
+  anywhere and run; the program keeps its files in a `data`
+  folder beside the .exe.
+- `SHA256SUMS.txt` — the SHA-256 of both downloads; check your
+  copy against it before running.
 
 The program is unsigned (no code-signing certificate) — Windows may
 warn on first run; choose "More info", then "Run anyway", if you trust
-this build. Check the SHA-256 in the release notes to be sure.
+this build.
 
 ## Screenshots
 

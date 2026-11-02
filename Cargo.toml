@@ -1,6 +1,6 @@
 [package]
 name = "calcdex"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 rust-version = "1.80"
 authors = ["Sean Shaffer"]
@@ -25,7 +25,8 @@ eframe = { version = "0.33", default-features = false, features = ["default_font
 eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "accesskit", "x11"] }
 
 [profile.release]
-opt-level = 3
+opt-level = "s"
 lto = true
 codegen-units = 1
+panic = "abort"
 strip = true
