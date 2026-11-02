@@ -21,6 +21,7 @@ pub mod calcs;
 pub mod engineers;
 pub mod features;
 pub mod meta;
+pub mod paths;
 pub mod rigour;
 pub mod settings;
 pub mod students;
@@ -795,22 +796,12 @@ pub fn parse_entry(line: &str) -> Option<LogEntry> {
     })
 }
 
-/// Where the log lives: %APPDATA%\CalcDex\history.txt when APPDATA is
-/// set, else beside the executable, else the current folder.
+/// Where the log lives: `history.txt` in the app's data folder
+/// (v0.9.0: `data\` beside the executable, with the legacy
+/// `%APPDATA%\CalcDex` copy-migration and fallbacks — see
+/// `crate::paths`).
 pub fn history_path() -> std::path::PathBuf {
-    if let Ok(appdata) = std::env::var("APPDATA") {
-        if !appdata.is_empty() {
-            return std::path::Path::new(&appdata)
-                .join("CalcDex")
-                .join("history.txt");
-        }
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            return dir.join("history.txt");
-        }
-    }
-    std::path::PathBuf::from("history.txt")
+    crate::paths::data_file("history.txt")
 }
 
 pub fn load_history_from(path: &std::path::Path) -> Vec<LogEntry> {
@@ -825,17 +816,14 @@ pub fn load_history() -> Vec<LogEntry> {
 }
 
 pub fn save_history_to(path: &std::path::Path, entries: &[LogEntry]) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
-    }
     let mut text = String::new();
     for e in entries {
         text.push_str(&serialize_entry(e));
         text.push('\n');
     }
-    std::fs::write(path, text)
+    // Atomic (v0.9.0): temp file + flush + rename, like every save
+    // of the app's own files.
+    crate::paths::atomic_write(path, text.as_bytes())
 }
 
 /// Append one entry to the log at `path`. The cap (item #49):

@@ -532,23 +532,12 @@ pub struct SavedExample {
     pub inputs: Vec<String>,
 }
 
-/// Where the examples library lives: %APPDATA%\CalcDex\examples.txt
-/// when APPDATA is set, else beside the executable, else the
-/// current folder (same rule as the settings and history files).
+/// Where the examples library lives: `examples.txt` in the app's
+/// data folder (v0.9.0: `data\` beside the executable, with the
+/// legacy `%APPDATA%\CalcDex` copy-migration and fallbacks — see
+/// `crate::paths`; same rule as the settings and history files).
 pub fn examples_path() -> std::path::PathBuf {
-    if let Ok(appdata) = std::env::var("APPDATA") {
-        if !appdata.is_empty() {
-            return std::path::Path::new(&appdata)
-                .join("CalcDex")
-                .join("examples.txt");
-        }
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            return dir.join("examples.txt");
-        }
-    }
-    std::path::PathBuf::from("examples.txt")
+    crate::paths::data_file("examples.txt")
 }
 
 fn ex_escape(s: &str) -> String {
@@ -703,12 +692,8 @@ pub fn load_examples(valid_ids: &std::collections::BTreeSet<String>) -> Vec<Save
 }
 
 pub fn save_examples_to(path: &std::path::Path, list: &[SavedExample]) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
-    }
-    std::fs::write(path, serialize_examples(list))
+    // Atomic save (v0.9.0): temp file + flush + rename.
+    crate::paths::atomic_write(path, serialize_examples(list).as_bytes())
 }
 
 pub fn save_examples(list: &[SavedExample]) -> std::io::Result<()> {

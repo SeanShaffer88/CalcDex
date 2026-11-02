@@ -3,6 +3,8 @@
 //! calculator registry, dispatched identically here, so there are no
 //! GUI-only calculators.
 
+mod win32;
+
 use calcdex::engineers::{find_material, resistivity_text, MATERIALS};
 use calcdex::features::{batch_run, csv_row, headline_of, search_ranked, vary_run};
 use calcdex::meta::{
@@ -41,16 +43,36 @@ fn main() -> eframe::Result<()> {
     if !args.is_empty() {
         std::process::exit(cli(&args));
     }
+    // v0.9.0 single instance: a second window launch prints a
+    // short note and exits 0. The guard is held for the whole
+    // run; dropping it at process end releases the name.
+    let _instance_guard = match win32::acquire_single_instance() {
+        Some(guard) => guard,
+        None => {
+            println!("CalcDex is already running — switch to the open window instead.");
+            return Ok(());
+        }
+    };
+    // v0.9.0: restore the last window position/size from the
+    // settings file (App::new loads the same file again for the
+    // full state). Implausible values were dropped at parse time,
+    // so whatever survives here is safe to apply.
+    let ids: BTreeSet<String> = all_calcs().iter().map(|c| c.id.to_string()).collect();
+    let saved = load_settings(&ids);
+    let viewport = egui::ViewportBuilder::default()
+        .with_title("CalcDex — every kind of calculation, offline")
+        .with_icon(std::sync::Arc::new(egui::IconData {
+            rgba: include_bytes!("../assets/icon-64.rgba").to_vec(),
+            width: 64,
+            height: 64,
+        }))
+        .with_min_inner_size([760.0, 520.0]);
+    let viewport = match saved.window {
+        Some((x, y, w, h)) => viewport.with_position([x, y]).with_inner_size([w, h]),
+        None => viewport.with_inner_size([1180.0, 760.0]),
+    };
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("CalcDex — every kind of calculation, offline")
-            .with_icon(std::sync::Arc::new(egui::IconData {
-                rgba: include_bytes!("../assets/icon-64.rgba").to_vec(),
-                width: 64,
-                height: 64,
-            }))
-            .with_inner_size([1180.0, 760.0])
-            .with_min_inner_size([760.0, 520.0]),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
@@ -204,6 +226,13 @@ fn cli(args: &[String]) -> i32 {
     // that may appear anywhere, like the display flags.
     let mut demo = false;
     let mut reveal = false;
+    // v0.9.0 maintenance modifiers: --json (machine-readable
+    // result for runs and for --clean/--uninstall), --dry-run and
+    // --silent (for --clean/--uninstall). Like the other global
+    // flags they may appear anywhere in the arguments.
+    let mut json = false;
+    let mut dry_run = false;
+    let mut silent = false;
     let mut save_example: Option<String> = None;
     let mut ex_note = String::new();
     let mut args: Vec<String> = args.to_vec();
@@ -373,6 +402,18 @@ fn cli(args: &[String]) -> i32 {
                 reveal = true;
                 take = 1;
             }
+            "--json" => {
+                json = true;
+                take = 1;
+            }
+            "--dry-run" => {
+                dry_run = true;
+                take = 1;
+            }
+            "--silent" => {
+                silent = true;
+                take = 1;
+            }
             "--save-example" => match args.get(i + 1) {
                 Some(v) => {
                     save_example = Some(v.clone());
@@ -409,6 +450,20 @@ fn cli(args: &[String]) -> i32 {
         return 2;
     }
     let args = &args[..];
+    if args[0] == "--version" {
+        if json {
+            println!(
+                "{{\"ok\":true,\"name\":\"CalcDex\",\"version\":\"{}\"}}",
+                env!("CARGO_PKG_VERSION")
+            );
+        } else {
+            println!("CalcDex {}", env!("CARGO_PKG_VERSION"));
+        }
+        return 0;
+    }
+    if args[0] == "--clean" || args[0] == "--uninstall" {
+        return cli_clean(args[0] == "--uninstall", dry_run, silent, json);
+    }
     if args[0] == "--list" || args[0] == "list" {
         for c in &calcs {
             println!("{:<38} [{}] {}", c.id, c.category, c.name);
@@ -1173,7 +1228,7 @@ fn cli(args: &[String]) -> i32 {
         };
     }
     if args[0] == "--help" || args[0] == "help" || args[0] == "-h" {
-        println!("CalcDex \u{2014} every kind of calculation, offline.\n\nNo arguments: opens the window.\n--list                       list all calculators\n--search <words>             find calculators (ranked, with synonyms: 'home loan' finds the mortgage calculator)\n--describe <id>              show a calculator's fields, hints and example\n--help-guide                 print the built-in help guide (same text as the window's HELP panel / F1)\n--log                        print the calculation log (every successful run, window or command line, is saved there)\n--clear-log                  empty the calculation log (a backup is written first)\n--restore-log                undo the last --clear-log (restores the backup)\n--log-tag <n> <tag>          tag log entry #n (numbers as --log shows them, 1 = newest; the log is backed up before the edit)\n--log-note <n> <note...>     annotate log entry #n (same numbering, same pre-edit backup)\n--lab-export <file>          export the whole log as a plain-text lab record (oldest first, tags and notes included)\n--log-search <text>          print the log entries whose name, inputs, result, tag or note contain the text (entry numbers stay the global ones --log shows)\n--log-filter <key>=<value>   print the log entries matching calc=<id>, tag=<tag>, date=<YYYY-MM-DD>, pinned=yes or text=<words>; several pairs combine\n--log-pin <n>                pin log entry #n so the 500-entry trim never drops it (the log is backed up before the edit)\n--log-unpin <n>              remove entry #n's pin again\n--log-export <file> [flags]  export the entries matching the flags as plain text (flags: --search <text>, --calc <id>, --tag <tag>, --date <YYYY-MM-DD>, --pinned; no flags = the whole log)\n--materials [name or code]   list the built-in materials table (typical density, resistivity, Young's modulus) or look one material up\n--constants                  list the constants library: the CODATA 2018 built-ins plus your own defined constants\n--define <name>=<value>      define your own constant for the Expression Calculator (saved in the shared settings file; built-in names are refused)\n--check-update               ask github.com for the newest release and report it (never downloads anything)\n--favourites                 list favourites + recent (from the shared settings file)
+        println!("CalcDex \u{2014} every kind of calculation, offline.\n\nNo arguments: opens the window.\n--list                       list all calculators\n--search <words>             find calculators (ranked, with synonyms: 'home loan' finds the mortgage calculator)\n--describe <id>              show a calculator's fields, hints and example\n--version                    print the version and exit\n--clean                      delete CalcDex's own files (settings, calculation log, class examples and their backups) from the data folder; asks first unless --silent\n--uninstall                  like --clean, and explains how the program files themselves are removed (the installer's uninstaller, or deleting the portable folder)\n--dry-run                    with --clean/--uninstall: list what would be removed, remove nothing\n--silent                     with --clean/--uninstall: skip the confirmation prompt\n--json                       with a run, --version, --clean or --uninstall: print the result as one JSON object on stdout\n--help-guide                 print the built-in help guide (same text as the window's HELP panel / F1)\n--log                        print the calculation log (every successful run, window or command line, is saved there)\n--clear-log                  empty the calculation log (a backup is written first)\n--restore-log                undo the last --clear-log (restores the backup)\n--log-tag <n> <tag>          tag log entry #n (numbers as --log shows them, 1 = newest; the log is backed up before the edit)\n--log-note <n> <note...>     annotate log entry #n (same numbering, same pre-edit backup)\n--lab-export <file>          export the whole log as a plain-text lab record (oldest first, tags and notes included)\n--log-search <text>          print the log entries whose name, inputs, result, tag or note contain the text (entry numbers stay the global ones --log shows)\n--log-filter <key>=<value>   print the log entries matching calc=<id>, tag=<tag>, date=<YYYY-MM-DD>, pinned=yes or text=<words>; several pairs combine\n--log-pin <n>                pin log entry #n so the 500-entry trim never drops it (the log is backed up before the edit)\n--log-unpin <n>              remove entry #n's pin again\n--log-export <file> [flags]  export the entries matching the flags as plain text (flags: --search <text>, --calc <id>, --tag <tag>, --date <YYYY-MM-DD>, --pinned; no flags = the whole log)\n--materials [name or code]   list the built-in materials table (typical density, resistivity, Young's modulus) or look one material up\n--constants                  list the constants library: the CODATA 2018 built-ins plus your own defined constants\n--define <name>=<value>      define your own constant for the Expression Calculator (saved in the shared settings file; built-in names are refused)\n--check-update               ask github.com for the newest release and report it (never downloads anything)\n--favourites                 list favourites + recent (from the shared settings file)
 --pack <GCSE|A-Level|AP|Undergrad> [--list]  list one course pack's calculators (item #24)
 --projection [on|off]        show or set classroom projection mode in the shared settings file (the window renders about 1.5x with higher contrast)
 --demo [--reveal]            with a run: print the working with result values hidden (demonstration mode); --reveal shows them. The log always stores the real result
@@ -1241,6 +1296,7 @@ set open <file>              list a set file's problems (never answers)
             &export_path,
             demo,
             reveal,
+            json,
         );
     }
     let id = &args[0];
@@ -1300,6 +1356,7 @@ set open <file>              list a set file's problems (never answers)
             &export_path,
             demo,
             reveal,
+            json,
         );
     }
     // <id> --practice --seed N [--answer X] (v0.5.0 item #15):
@@ -1352,11 +1409,13 @@ set open <file>              list a set file's problems (never answers)
         let nums = calc.example.to_vec();
         return match run_calc(id, &nums) {
             Ok(out) => {
-                println!(
-                    "Example — {} with inputs: {}",
-                    calc.name,
-                    display_tokens(calc, &nums).join(", ")
-                );
+                if !json {
+                    println!(
+                        "Example — {} with inputs: {}",
+                        calc.name,
+                        display_tokens(calc, &nums).join(", ")
+                    );
+                }
                 let auto_inputs: Vec<String> = display_tokens(calc, &nums);
                 let mut rc = cli_after_run(
                     calc,
@@ -1371,6 +1430,7 @@ set open <file>              list a set file's problems (never answers)
                     &auto_inputs,
                     demo,
                     reveal,
+                    json,
                 );
                 let entry = make_entry(calc, &nums, &out);
                 let _ = append_history(entry);
@@ -1384,6 +1444,13 @@ set open <file>              list a set file's problems (never answers)
                 rc
             }
             Err(e) => {
+                if json {
+                    println!(
+                        "{{\"ok\":false,\"calculator\":\"{}\",\"error\":\"{}\"}}",
+                        json_escape(id),
+                        json_escape(&e)
+                    );
+                }
                 eprintln!("Error: {e}");
                 1
             }
@@ -1451,6 +1518,13 @@ set open <file>              list a set file's problems (never answers)
     let nums = match expand_args(calc, &args[1..]) {
         Ok(v) => v,
         Err(e) => {
+            if json {
+                println!(
+                    "{{\"ok\":false,\"calculator\":\"{}\",\"error\":\"{}\"}}",
+                    json_escape(id),
+                    json_escape(&e)
+                );
+            }
             eprintln!("Error: {e}");
             return 2;
         }
@@ -1470,6 +1544,7 @@ set open <file>              list a set file's problems (never answers)
                 &args[1..],
                 demo,
                 reveal,
+                json,
             );
             // Every successful CLI run is saved to the same log the window uses.
             let entry = make_entry(calc, &nums, &out);
@@ -1484,9 +1559,185 @@ set open <file>              list a set file's problems (never answers)
             rc
         }
         Err(e) => {
+            if json {
+                println!(
+                    "{{\"ok\":false,\"calculator\":\"{}\",\"error\":\"{}\"}}",
+                    json_escape(id),
+                    json_escape(&e)
+                );
+            }
             eprintln!("Error: {e}");
             1
         }
+    }
+}
+
+/// Escape a string for a JSON string literal. Hand-rolled: the
+/// crate set carries no JSON dependency and the CLI's `--json`
+/// output is small flat objects.
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// `--clean` / `--uninstall` (v0.9.0): remove CalcDex's own
+/// files — settings, the calculation log, the class examples and
+/// their backups — from the CURRENT data location only (see
+/// `calcdex::paths`). Program files are never touched: an
+/// installed build is removed by its installer's uninstaller and
+/// a portable build by deleting its folder, which `--uninstall`
+/// says out loud. Refuses while a CalcDex window is running.
+/// Without `--silent` it asks on stdin first (the prompt goes to
+/// stderr, so `--json` output on stdout stays parseable). Exit
+/// codes match the rest of the CLI: 0 = done / nothing to do /
+/// the user said no, 1 = refused or a removal failed.
+fn cli_clean(uninstall: bool, dry_run: bool, silent: bool, json: bool) -> i32 {
+    let action = if uninstall { "uninstall" } else { "clean" };
+    let note = "Program files are not removed: use the installer's uninstaller, or delete the portable folder.";
+    if win32::another_instance_running() {
+        if json {
+            println!(
+                "{{\"ok\":false,\"action\":\"{action}\",\"error\":\"{}\"}}",
+                json_escape("CalcDex is running — close the window first, then try again.")
+            );
+        } else {
+            eprintln!("CalcDex is running — close the window first, then try again.");
+        }
+        return 1;
+    }
+    let dir = calcdex::paths::data_dir();
+    let plan = calcdex::paths::purge_candidates(&dir);
+    let names: Vec<String> = plan
+        .iter()
+        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .collect();
+    let names_json = names
+        .iter()
+        .map(|n| format!("\"{}\"", json_escape(n)))
+        .collect::<Vec<_>>()
+        .join(",");
+    let dir_json = json_escape(&dir.to_string_lossy());
+    if plan.is_empty() {
+        if json {
+            println!(
+                "{{\"ok\":true,\"action\":\"{action}\",\"data_dir\":\"{dir_json}\",\"removed\":[]}}"
+            );
+        } else {
+            println!("Nothing to remove — no CalcDex files in {}.", dir.display());
+            if uninstall {
+                println!("{note}");
+            }
+        }
+        return 0;
+    }
+    if dry_run {
+        if json {
+            println!(
+                "{{\"ok\":true,\"action\":\"{action}\",\"dry_run\":true,\"data_dir\":\"{dir_json}\",\"would_remove\":[{names_json}]}}"
+            );
+        } else {
+            println!(
+                "Would remove {} file(s) from {}:",
+                plan.len(),
+                dir.display()
+            );
+            for p in &plan {
+                println!("  {}", p.display());
+            }
+            println!("Nothing was removed (--dry-run).");
+            if uninstall {
+                println!("{note}");
+            }
+        }
+        return 0;
+    }
+    if !silent {
+        if !json {
+            println!(
+                "About to remove {} file(s) from {}:",
+                plan.len(),
+                dir.display()
+            );
+            for p in &plan {
+                println!("  {}", p.display());
+            }
+        }
+        eprint!("Remove these files? [y/N] ");
+        use std::io::Write;
+        let _ = std::io::stderr().flush();
+        let mut line = String::new();
+        let _ = std::io::stdin().read_line(&mut line);
+        if !matches!(line.trim(), "y" | "Y" | "yes" | "Yes" | "YES") {
+            if json {
+                println!(
+                    "{{\"ok\":true,\"action\":\"{action}\",\"cancelled\":true,\"removed\":[]}}"
+                );
+            } else {
+                println!("Nothing removed.");
+            }
+            return 0;
+        }
+    }
+    let mut removed: Vec<String> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+    for (p, name) in plan.iter().zip(names.iter()) {
+        match std::fs::remove_file(p) {
+            Ok(()) => removed.push(name.clone()),
+            Err(e) => errors.push(format!("{name}: {e}")),
+        }
+    }
+    let ok = errors.is_empty();
+    if json {
+        let removed_json = removed
+            .iter()
+            .map(|n| format!("\"{}\"", json_escape(n)))
+            .collect::<Vec<_>>()
+            .join(",");
+        let errors_json = errors
+            .iter()
+            .map(|n| format!("\"{}\"", json_escape(n)))
+            .collect::<Vec<_>>()
+            .join(",");
+        let note_json = if uninstall {
+            format!(",\"note\":\"{}\"", json_escape(note))
+        } else {
+            String::new()
+        };
+        println!(
+            "{{\"ok\":{ok},\"action\":\"{action}\",\"data_dir\":\"{dir_json}\",\"removed\":[{removed_json}],\"errors\":[{errors_json}]{note_json}}}"
+        );
+    } else {
+        for name in &removed {
+            println!("Removed {name}");
+        }
+        for e in &errors {
+            eprintln!("Could not remove {e}");
+        }
+        println!(
+            "Removed {} of {} file(s) from {}.",
+            removed.len(),
+            plan.len(),
+            dir.display()
+        );
+        if uninstall {
+            println!("{note}");
+        }
+    }
+    if ok {
+        0
+    } else {
+        1
     }
 }
 
@@ -1790,7 +2041,39 @@ fn cli_after_run(
     auto_inputs: &[String],
     demo: bool,
     reveal: bool,
+    json: bool,
 ) -> i32 {
+    if json {
+        // --json: one machine-readable object on stdout; the
+        // human decorations (display annotation, spec verdicts,
+        // exact line, check verdict) are skipped. Demo mode
+        // still masks the result. The export side effect is
+        // honoured with the real text, exactly like the log.
+        let shown = if demo && !reveal {
+            mask_result_text(out, nums)
+        } else {
+            out.to_string()
+        };
+        let inputs: Vec<String> = nums.iter().map(|v| format!("{v}")).collect();
+        println!(
+            "{{\"ok\":true,\"calculator\":\"{}\",\"name\":\"{}\",\"inputs\":[{}],\"result\":\"{}\"}}",
+            json_escape(calc.id),
+            json_escape(calc.name),
+            inputs.join(","),
+            json_escape(&shown)
+        );
+        if let Some(path) = export_path {
+            let text = solution_text(calc, nums, out, steps_deeper);
+            return match std::fs::write(path, text) {
+                Ok(()) => 0,
+                Err(e) => {
+                    eprintln!("Could not write the solution file {path}: {e}");
+                    1
+                }
+            };
+        }
+        return 0;
+    }
     if demo && !reveal {
         if steps_deeper {
             println!("{}", mask_result_text(&deeper_steps(calc, nums, out), nums));
@@ -1891,6 +2174,7 @@ fn cli_run_text(
     export_path: &Option<String>,
     demo: bool,
     reveal: bool,
+    json: bool,
 ) -> i32 {
     let Some(calc) = all_calcs().into_iter().find(|c| c.id == id) else {
         eprintln!("No calculator called '{id}'.");
@@ -1905,8 +2189,18 @@ fn cli_run_text(
                 // result value); exact/check are skipped — both
                 // would reveal the answer.
                 let masked = mask_result_text(&out, &[]);
-                println!("{masked}");
-                println!("(Demonstration mode: result values are hidden — add --reveal to show them. The calculation log stores the real result.)");
+                if json {
+                    println!(
+                        "{{\"ok\":true,\"calculator\":\"{}\",\"name\":\"{}\",\"input\":\"{}\",\"result\":\"{}\"}}",
+                        json_escape(calc.id),
+                        json_escape(calc.name),
+                        json_escape(text),
+                        json_escape(&masked)
+                    );
+                } else {
+                    println!("{masked}");
+                    println!("(Demonstration mode: result values are hidden — add --reveal to show them. The calculation log stores the real result.)");
+                }
                 let mut rc = 0;
                 if let Some(path) = export_path {
                     let text_out = solution_text_for_text(calc.name, text, &masked);
@@ -1932,20 +2226,33 @@ fn cli_run_text(
                 let _ = append_history(entry);
                 return rc;
             }
-            cli_print(&out, display, copy_format, spec, &[]);
             let mut rc = 0;
-            if display.mode == DisplayMode::Exact && copy_format.is_none() {
-                let mode = if degrees {
-                    AngleMode::Degrees
-                } else {
-                    AngleMode::Radians
-                };
-                println!("{}", exact_line_for_expression(text, mode));
-            }
-            if let Some(ans) = check_ans {
-                match check_answer(&calc, &out, ans) {
-                    Ok(o) => println!("{}", o.message),
-                    Err(e) => eprintln!("Check: {e}"),
+            if json {
+                // --json: one object on stdout; the human
+                // decorations (exact line, check verdict) are
+                // skipped, the export + log still happen below.
+                println!(
+                    "{{\"ok\":true,\"calculator\":\"{}\",\"name\":\"{}\",\"input\":\"{}\",\"result\":\"{}\"}}",
+                    json_escape(calc.id),
+                    json_escape(calc.name),
+                    json_escape(text),
+                    json_escape(&out)
+                );
+            } else {
+                cli_print(&out, display, copy_format, spec, &[]);
+                if display.mode == DisplayMode::Exact && copy_format.is_none() {
+                    let mode = if degrees {
+                        AngleMode::Degrees
+                    } else {
+                        AngleMode::Radians
+                    };
+                    println!("{}", exact_line_for_expression(text, mode));
+                }
+                if let Some(ans) = check_ans {
+                    match check_answer(&calc, &out, ans) {
+                        Ok(o) => println!("{}", o.message),
+                        Err(e) => eprintln!("Check: {e}"),
+                    }
                 }
             }
             if let Some(path) = export_path {
@@ -1978,6 +2285,13 @@ fn cli_run_text(
             rc
         }
         Err(e) => {
+            if json {
+                println!(
+                    "{{\"ok\":false,\"calculator\":\"{}\",\"error\":\"{}\"}}",
+                    json_escape(id),
+                    json_escape(&e)
+                );
+            }
             eprintln!("Error: {e}");
             1
         }
@@ -2347,8 +2661,8 @@ struct App {
     mark_msg: String,
     sheet_category: String,
     sheet_path: String,
-    /// The saved class examples library (#28), loaded from
-    /// %APPDATA%\CalcDex\examples.txt at startup.
+    /// The saved class examples library (#28), loaded from the
+    /// data folder's examples.txt at startup.
     examples: Vec<SavedExample>,
     ex_title: String,
     ex_note: String,
@@ -2370,6 +2684,10 @@ struct App {
     show_materials: bool,
     /// Log polish view state (#49) for the log views.
     log_view: LogView,
+    /// v0.9.0: last-seen window geometry (outer position + inner
+    /// size), captured every frame and written into the settings
+    /// on exit so the next launch reopens where this one closed.
+    window_rect: Option<(f32, f32, f32, f32)>,
 }
 
 impl App {
@@ -2490,6 +2808,7 @@ impl App {
                 export_path: default_log_export_path(),
                 ..Default::default()
             },
+            window_rect: None,
         }
     }
 
@@ -3422,7 +3741,32 @@ fn tip_chip(ui: &mut egui::Ui, name: &str, selected: bool) -> egui::Response {
 }
 
 impl eframe::App for App {
+    /// v0.9.0: on exit, persist the last-seen window geometry so
+    /// the next launch reopens where this one closed.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Some(rect) = self.window_rect {
+            if self.settings.window != Some(rect) {
+                self.settings.window = Some(rect);
+                self.persist_settings();
+            }
+        }
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // v0.9.0: track the window geometry (outer position +
+        // inner size) for the on_exit save above.
+        let rect = ctx.input(|i| {
+            let v = i.viewport();
+            match (v.outer_rect, v.inner_rect) {
+                (Some(outer), Some(inner)) => {
+                    Some((outer.min.x, outer.min.y, inner.width(), inner.height()))
+                }
+                _ => None,
+            }
+        });
+        if rect.is_some() {
+            self.window_rect = rect;
+        }
         // Classroom projection mode (#21): apply the persisted
         // setting to the context whenever it changes (the first
         // frame counts, so a saved-on setting greets the user).

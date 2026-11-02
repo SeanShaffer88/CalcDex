@@ -1,9 +1,20 @@
 //! Persistent settings (v0.3.0, items #1 / #46 / #48): favourites,
 //! recent calculators, per-calculator remembered inputs, and the
-//! sig-figs choice — one simple documented text file shared by all
-//! three, at %APPDATA%\CalcDex\settings.txt.
+//! sig-figs choice — one simple documented text file shared by the
+//! window and the command line, at `data\settings.txt` beside the
+//! executable (v0.9.0 portable data folder; the pre-v0.9.0
+//! %APPDATA%\CalcDex file is copied across on first run — see
+//! `crate::paths`).
 //!
 //! Format (one record per line, `#` comments allowed):
+//!   schema_version=1      (the file-format version, v0.9.0; a
+//!                          file with no such line is version 0
+//!                          and is migrated in memory on load; a
+//!                          version NEWER than this build loads
+//!                          as defaults with a warning, and this
+//!                          build will not overwrite the file)
+//!   window=<x>,<y>,<w>,<h>  (last window position + inner size,
+//!                          v0.9.0; implausible values are ignored)
 //!   display_format=sig-figs:3   (off | sig-figs:N | decimals:N |
 //!                                engineering | auto; v0.4.0 — the
 //!                                old sig_figs= line still loads)
@@ -35,6 +46,12 @@ use std::collections::{BTreeSet, HashMap};
 
 pub const RECENT_CAP: usize = 8;
 
+/// The settings file-format version this build writes. Files
+/// declaring a NEWER version are never overwritten by this build
+/// (see `save_settings_to`) and load as defaults with a warning
+/// (see `load_settings_report_from`).
+pub const SETTINGS_SCHEMA_VERSION: u32 = 1;
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Settings {
     /// Unified display format (v0.4.0 #1/#2/#3/#37): mode,
@@ -60,6 +77,11 @@ pub struct Settings {
     /// in definition order; names are stored already validated +
     /// lowercased by rigour::validate_constant_name.
     pub constants: Vec<(String, f64)>,
+    /// Last window geometry (v0.9.0): outer position (x, y) and
+    /// inner size (w, h) in points, restored on the next launch.
+    /// Values are range-checked at parse time; anything
+    /// implausible is dropped rather than restored.
+    pub window: Option<(f32, f32, f32, f32)>,
 }
 
 fn esc(s: &str) -> String {
@@ -114,6 +136,10 @@ fn split_tokens(s: &str) -> Vec<String> {
 pub fn serialize_settings(s: &Settings) -> String {
     let mut out = String::new();
     out.push_str("# CalcDex settings — see settings.rs for the format.\n");
+    out.push_str(&format!("schema_version={SETTINGS_SCHEMA_VERSION}\n"));
+    if let Some((x, y, w, h)) = s.window {
+        out.push_str(&format!("window={x},{y},{w},{h}\n"));
+    }
     out.push_str(&format!("display_format={}\n", s.display.as_setting()));
     out.push_str(&format!("rounding={}\n", s.display.rounding.as_setting()));
     out.push_str(&format!(
@@ -158,7 +184,26 @@ pub fn parse_settings(text: &str, valid_ids: &BTreeSet<String>) -> Settings {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Some(v) = line.strip_prefix("display_format=") {
+        if line.starts_with("schema_version=") {
+            // The format version line: consumed by
+            // `declared_schema_version`; it carries no setting.
+            continue;
+        } else if let Some(v) = line.strip_prefix("window=") {
+            // Last window geometry (v0.9.0): four numbers,
+            // range-checked so a corrupt or off-screen value is
+            // ignored instead of restored.
+            let nums: Vec<f32> = v.split(',').filter_map(|p| p.trim().parse().ok()).collect();
+            if nums.len() == 4 {
+                let (x, y, w, h) = (nums[0], nums[1], nums[2], nums[3]);
+                if (-32000.0..=32000.0).contains(&x)
+                    && (-32000.0..=32000.0).contains(&y)
+                    && (320.0..=10000.0).contains(&w)
+                    && (240.0..=10000.0).contains(&h)
+                {
+                    s.window = Some((x, y, w, h));
+                }
+            }
+        } else if let Some(v) = line.strip_prefix("display_format=") {
             if let Ok(f) = DisplayFormat::parse(v) {
                 // Keep an already-read rounding choice.
                 let rounding = s.display.rounding;
@@ -221,32 +266,78 @@ pub fn parse_settings(text: &str, valid_ids: &BTreeSet<String>) -> Settings {
     s
 }
 
-/// Where the settings live: %APPDATA%\CalcDex\settings.txt when
-/// APPDATA is set, else beside the executable, else the current
-/// folder (same rule as the history log).
+/// Where the settings live: `settings.txt` in the app's data
+/// folder (v0.9.0: `data\` beside the executable, with the legacy
+/// `%APPDATA%\CalcDex` copy-migration and fallbacks — see
+/// `crate::paths`; same rule as the history log).
 pub fn settings_path() -> std::path::PathBuf {
-    if let Ok(appdata) = std::env::var("APPDATA") {
-        if !appdata.is_empty() {
-            return std::path::Path::new(&appdata)
-                .join("CalcDex")
-                .join("settings.txt");
+    crate::paths::data_file("settings.txt")
+}
+
+/// The schema version a settings text declares: the value of its
+/// `schema_version=` line, or 0 when the line is absent (every
+/// pre-v0.9.0 file) or unreadable.
+pub fn declared_schema_version(text: &str) -> u32 {
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(v) = line.strip_prefix("schema_version=") {
+            return v.trim().parse::<u32>().unwrap_or(0);
         }
     }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            return dir.join("settings.txt");
-        }
+    0
+}
+
+/// How a settings load went (v0.9.0 schema handling), for callers
+/// and tests that care; plain `load_settings_from` discards it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SettingsLoadNote {
+    /// No readable file: defaults, nothing to migrate.
+    Fresh,
+    /// The file already declared the current schema version.
+    Current,
+    /// The file declared an older version (0 = no line at all)
+    /// and was migrated in memory; the next save writes the
+    /// current version.
+    MigratedFrom(u32),
+    /// The file declared a version NEWER than this build: the
+    /// settings loaded as defaults (with a warning printed) and
+    /// this build will not overwrite the file.
+    FutureVersion(u32),
+}
+
+/// Load settings from `path` and report how the load went.
+/// Missing/corrupt -> defaults. Never fails: persistence
+/// problems must never break startup.
+pub fn load_settings_report_from(
+    path: &std::path::Path,
+    valid_ids: &BTreeSet<String>,
+) -> (Settings, SettingsLoadNote) {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return (Settings::default(), SettingsLoadNote::Fresh);
+    };
+    let declared = declared_schema_version(&text);
+    if declared > SETTINGS_SCHEMA_VERSION {
+        eprintln!(
+            "CalcDex: {} declares schema_version {declared}, which is newer than this build understands ({SETTINGS_SCHEMA_VERSION}) — loading defaults instead; the file has NOT been changed.",
+            path.display()
+        );
+        return (
+            Settings::default(),
+            SettingsLoadNote::FutureVersion(declared),
+        );
     }
-    std::path::PathBuf::from("settings.txt")
+    let note = if declared == SETTINGS_SCHEMA_VERSION {
+        SettingsLoadNote::Current
+    } else {
+        SettingsLoadNote::MigratedFrom(declared)
+    };
+    (parse_settings(&text, valid_ids), note)
 }
 
 /// Load settings from `path`; missing/corrupt -> defaults. Never
 /// fails: persistence problems must never break startup.
 pub fn load_settings_from(path: &std::path::Path, valid_ids: &BTreeSet<String>) -> Settings {
-    match std::fs::read_to_string(path) {
-        Ok(text) => parse_settings(&text, valid_ids),
-        Err(_) => Settings::default(),
-    }
+    load_settings_report_from(path, valid_ids).0
 }
 
 pub fn load_settings(valid_ids: &BTreeSet<String>) -> Settings {
@@ -254,12 +345,21 @@ pub fn load_settings(valid_ids: &BTreeSet<String>) -> Settings {
 }
 
 pub fn save_settings_to(path: &std::path::Path, s: &Settings) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
+    // Never clobber a settings file written by a NEWER build:
+    // its schema may hold things this build would silently drop.
+    if let Ok(existing) = std::fs::read_to_string(path) {
+        let declared = declared_schema_version(&existing);
+        if declared > SETTINGS_SCHEMA_VERSION {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "settings file declares schema_version {declared} (newer than this build's {SETTINGS_SCHEMA_VERSION}); not overwriting it"
+                ),
+            ));
         }
     }
-    std::fs::write(path, serialize_settings(s))
+    // Atomic save (v0.9.0): temp file + flush + rename.
+    crate::paths::atomic_write(path, serialize_settings(s).as_bytes())
 }
 
 pub fn save_settings(s: &Settings) -> std::io::Result<()> {
