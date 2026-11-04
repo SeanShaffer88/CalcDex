@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- Legacy storage migration stages and flushes the complete data set before
+  publication, preserving legacy storage on failure and existing foreign entries.
 - **Projection mode keeps the History rail.** Turning on classroom
   projection enlarges the whole window (1.5x), which used to make
   the History rail drop away and the top row run off the right edge
