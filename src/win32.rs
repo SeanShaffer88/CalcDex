@@ -42,9 +42,7 @@ impl Drop for InstanceGuard {
             // SAFETY: the handle came from CreateMutexW in
             // `acquire_single_instance` and is closed exactly once,
             // here.
-            unsafe {
-                imp::close_handle(self.handle);
-            }
+            imp::close_handle(self.handle);
             self.handle = std::ptr::null_mut();
         }
     }
