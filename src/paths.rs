@@ -376,11 +376,25 @@ pub fn atomic_write(path: &Path, contents: &[u8]) -> std::io::Result<()> {
 /// `dir`: exactly the app's known files that exist there. Pure —
 /// touches nothing.
 pub fn purge_candidates(dir: &Path) -> Vec<PathBuf> {
-    KNOWN_FILES
+    let mut out: Vec<PathBuf> = KNOWN_FILES
         .iter()
         .map(|name| dir.join(name))
         .filter(|p| p.exists())
-        .collect()
+        .collect();
+    // RPN states (`rpn-<name>.txt`) and quarantined copies (`.txt.bad`).
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        let mut extra: Vec<PathBuf> = rd
+            .flatten()
+            .filter(|e| {
+                let n = e.file_name().to_string_lossy().to_string();
+                n.starts_with("rpn-") && (n.ends_with(".txt") || n.ends_with(".txt.bad"))
+            })
+            .map(|e| e.path())
+            .collect();
+        extra.sort();
+        out.extend(extra);
+    }
+    out
 }
 
 #[cfg(all(test, windows))]

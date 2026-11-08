@@ -23,6 +23,7 @@ pub mod features;
 pub mod meta;
 pub mod paths;
 pub mod rigour;
+pub mod rpn;
 pub mod settings;
 pub mod students;
 pub mod teachers;

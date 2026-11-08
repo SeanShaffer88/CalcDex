@@ -102,3 +102,9 @@ result in outputs; full precision; scientific-notation inputs;
 constants named; estimates labelled. Implemented in the registry
 output text and README — Verified by CLI output; GUI presentation
 of the v0.4.0, v0.5.0, v0.6.0 and v0.7.0 panels is Unverified until a fresh field run.
+
+## RPN mode (P1)
+
+| Capability | Window | Command line |
+|---|---|---|
+| RPN stack machine (P1) | Not yet (phase P9) | `CalcDex rpn "<tokens>"` — Verified by tests/rpn_p1.rs |
