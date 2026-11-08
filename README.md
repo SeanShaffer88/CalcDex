@@ -143,6 +143,19 @@ CalcDex --restore-log
 CalcDex --check-update
 ```
 
+RPN mode (v0.9.x, command line only for now; window comes later):
+
+```
+CalcDex rpn "2 3 + 4 *"           prints 20.0000
+CalcDex rpn "1 3 / ALL"           prints 0.333333333333
+CalcDex rpn "5 ENTER 3 -" --stack shows T/Z/Y/X
+CalcDex rpn "12 STO A" --state work    keep variables between runs
+```
+
+Tokens are separated by spaces: numbers (`1.5e-3`), operators,
+and HP-42S names (ENTER, SIN, STO, RCL, FIX 4, ...). Errors name a
+stable code such as `[RPN-103]`. See `docs/RPN_PLAN.md`.
+
 Numbers go in the same order as the labelled boxes in the window.
 For unit converters the two extra numbers pick the units from the
 numbered list shown in that calculator's description.

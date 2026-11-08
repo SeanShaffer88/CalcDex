@@ -461,6 +461,9 @@ fn cli(args: &[String]) -> i32 {
         }
         return 0;
     }
+    if args[0] == "rpn" {
+        return cli_rpn(&args[1..], json);
+    }
     if args[0] == "--clean" || args[0] == "--uninstall" {
         return cli_clean(args[0] == "--uninstall", dry_run, silent, json);
     }
@@ -1242,7 +1245,7 @@ set open <file>              list a set file's problems (never answers)
 --formula-sheet <Category|All> <file>  write a printable formula sheet (formula + symbol meanings per calculator)
 --save-example \"<title>\" [--note \"<note>\"]  with a run: save it as a named class example in the examples library
 --examples                   list the saved class examples
---open-example \"<title>\"     print a saved example's problem + worked solution\n--favourite <id>             add a calculator to the favourites in the settings file\n--unfavourite <id>           remove it again\n--batch <id> <in.csv> <out.csv>  run one calculator over a CSV file (header row names the fields; see README). An existing output file needs --force (backed up to .bak first)\n--force                      allow --batch to overwrite its output file (with backup)\n--sig-figs <n>               also show the headline rounded to n significant figures (display only; may appear anywhere)\n--decimals <n>               also show the headline to n decimal places (display only)\n--format <mode[:n]>         the unified display format: off, sig-figs:3, decimals:2, engineering, auto (auto = precision inferred from your inputs), exact (fractions labelled exact, pi geometry also shows its exact form like 25*pi, rational expressions worked out exactly)\n--steps <standard|deeper>  deeper steps: the formula, the formula with your values in it, the working, and the result, in labelled stages\n--rounding <mode>            half-up, bankers or truncate — applies to the display formats above\n--as <format>                print a run's result as plain, latex, scientific or csv\n--spec <min> <max>           after a run, print PASS/FAIL for each result line against these limits (limits included)\n<calculator-id> <numbers...> run one calculator; numbers in the order of its labelled inputs\n<calculator-id> --example    run the calculator's built-in teaching example\n<calculator-id> --vary <field> <start> <end> <step> <other numbers...>\n                             sweep one input (field numbered from 0, as in --describe);\n                             the other numbers are the remaining inputs in order\nexpr \"<expression>\"          evaluate a free expression, e.g. CalcDex expr \"sqrt(2)/2\" (--degrees/--radians choose the trig mode; degrees is the default)\n<calculator-id> <numbers> --check <answer>\n                             check your own answer against the run (a number, or a fraction like 3/4 for the fraction calculators)\n<calculator-id> <numbers> --export <path>\n                             save the worked solution (name, formula, inputs, steps, result) as a plain-text file\n<calculator-id> --practice --seed <n> [--answer <x>]\n                             print a practice problem made from the seed; with --answer, check your answer and show the worked solution\nexpr \"<expression in x>\" --plot <from> <to>\n                             print the plot as CSV x,y sample points (the command-line form of the plot; a blank y means the function is not defined there)\n\nDates: a date is entered as ONE argument in MM/DD/YYYY form \u{2014} for example\n  CalcDex age 04/23/1988 10/25/2026\nThe older three-number form still works: CalcDex age 1988 4 23 2026 10 25\n\nNumbers may use scientific notation (e.g. 6.022e23, 1.5e-3), and many fields accept typed quantities in quotes (e.g. CalcDex bmi \"154 lb\" \"5 ft 9 in\") — they are converted into the field's unit. Results show the formula, substituted values, and full precision.\n\nExpressions may use the CODATA constants by name (CalcDex expr \"h*c/500e-9\"), your own --define constants, and measurements with uncertainties (CalcDex expr \"10 \u{b1} 0.2 + 5 \u{b1} 0.1\" — also written 10 +/- 0.2): the uncertainty is carried through every operation and the propagation steps are shown. List calculators accept values separated by commas, spaces, tabs, semicolons or new lines — a pasted column in quotes works as one argument.\n\nExample: CalcDex compound-interest 1000 5 10");
+--open-example \"<title>\"     print a saved example's problem + worked solution\n--favourite <id>             add a calculator to the favourites in the settings file\n--unfavourite <id>           remove it again\n--batch <id> <in.csv> <out.csv>  run one calculator over a CSV file (header row names the fields; see README). An existing output file needs --force (backed up to .bak first)\n--force                      allow --batch to overwrite its output file (with backup)\n--sig-figs <n>               also show the headline rounded to n significant figures (display only; may appear anywhere)\n--decimals <n>               also show the headline to n decimal places (display only)\n--format <mode[:n]>         the unified display format: off, sig-figs:3, decimals:2, engineering, auto (auto = precision inferred from your inputs), exact (fractions labelled exact, pi geometry also shows its exact form like 25*pi, rational expressions worked out exactly)\n--steps <standard|deeper>  deeper steps: the formula, the formula with your values in it, the working, and the result, in labelled stages\n--rounding <mode>            half-up, bankers or truncate — applies to the display formats above\n--as <format>                print a run's result as plain, latex, scientific or csv\n--spec <min> <max>           after a run, print PASS/FAIL for each result line against these limits (limits included)\n<calculator-id> <numbers...> run one calculator; numbers in the order of its labelled inputs\n<calculator-id> --example    run the calculator's built-in teaching example\n<calculator-id> --vary <field> <start> <end> <step> <other numbers...>\n                             sweep one input (field numbered from 0, as in --describe);\n                             the other numbers are the remaining inputs in order\nexpr \"<expression>\"          evaluate a free expression, e.g. CalcDex expr \"sqrt(2)/2\" (--degrees/--radians choose the trig mode; degrees is the default)\nrpn \"<tokens>\" [--stack] [--state <name>]\n                             run HP-42S-style RPN tokens, e.g. CalcDex rpn \"2 3 + 4 *\" prints 20.0000; --stack shows T/Z/Y/X; --state keeps the stack and variables between runs (saved in the data folder)\n<calculator-id> <numbers> --check <answer>\n                             check your own answer against the run (a number, or a fraction like 3/4 for the fraction calculators)\n<calculator-id> <numbers> --export <path>\n                             save the worked solution (name, formula, inputs, steps, result) as a plain-text file\n<calculator-id> --practice --seed <n> [--answer <x>]\n                             print a practice problem made from the seed; with --answer, check your answer and show the worked solution\nexpr \"<expression in x>\" --plot <from> <to>\n                             print the plot as CSV x,y sample points (the command-line form of the plot; a blank y means the function is not defined there)\n\nDates: a date is entered as ONE argument in MM/DD/YYYY form \u{2014} for example\n  CalcDex age 04/23/1988 10/25/2026\nThe older three-number form still works: CalcDex age 1988 4 23 2026 10 25\n\nNumbers may use scientific notation (e.g. 6.022e23, 1.5e-3), and many fields accept typed quantities in quotes (e.g. CalcDex bmi \"154 lb\" \"5 ft 9 in\") — they are converted into the field's unit. Results show the formula, substituted values, and full precision.\n\nExpressions may use the CODATA constants by name (CalcDex expr \"h*c/500e-9\"), your own --define constants, and measurements with uncertainties (CalcDex expr \"10 \u{b1} 0.2 + 5 \u{b1} 0.1\" — also written 10 +/- 0.2): the uncertainty is carried through every operation and the propagation steps are shown. List calculators accept values separated by commas, spaces, tabs, semicolons or new lines — a pasted column in quotes works as one argument.\n\nExample: CalcDex compound-interest 1000 5 10");
         return 0;
     }
     // expr "<expression>" (item #5): free-expression shortcut alias.
@@ -1602,6 +1605,72 @@ fn json_escape(s: &str) -> String {
 /// stderr, so `--json` output on stdout stays parseable). Exit
 /// codes match the rest of the CLI: 0 = done / nothing to do /
 /// the user said no, 1 = refused or a removal failed.
+/// `CalcDex rpn "<tokens>"` — the RPN stack machine (P1).
+fn cli_rpn(args: &[String], json: bool) -> i32 {
+    use calcdex::rpn::{state, Session};
+    let mut show_stack = false;
+    let mut state_name: Option<String> = None;
+    let mut parts: Vec<&str> = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--stack" => show_stack = true,
+            "--state" => {
+                i += 1;
+                match args.get(i) {
+                    Some(n) => state_name = Some(n.clone()),
+                    None => {
+                        eprintln!("--state needs a name, e.g. --state work.");
+                        return 2;
+                    }
+                }
+            }
+            other => parts.push(other),
+        }
+        i += 1;
+    }
+    let fail = |code: &str, msg: &str| -> i32 {
+        if json {
+            let esc = msg.replace('\\', "\\\\").replace('"', "\\\"");
+            println!("{{\"ok\":false,\"code\":\"{code}\",\"error\":\"{esc}\"}}");
+        } else {
+            eprintln!("{msg}");
+        }
+        1
+    };
+    let (mut session, read_only) = match &state_name {
+        Some(n) => match state::load(n) {
+            Ok(l) => {
+                if let Some(note) = &l.note {
+                    eprintln!("{note}");
+                }
+                (l.session, l.read_only)
+            }
+            Err(e) => return fail(e.code, &e.to_string()),
+        },
+        None => (Session::new(), false),
+    };
+    let line = parts.join(" ");
+    let result = session.exec_line(&line);
+    // Save even after an error: tokens before the failing one stay applied.
+    if let (Some(n), false) = (&state_name, read_only) {
+        if let Err(e) = state::save(n, &session) {
+            return fail(e.code, &e.to_string());
+        }
+    }
+    if let Err(e) = result {
+        return fail(e.code, &e.to_string());
+    }
+    if json {
+        println!("{}", session.to_json());
+    } else if show_stack {
+        println!("{}", session.stack_text());
+    } else {
+        println!("{}", session.display_x());
+    }
+    0
+}
+
 fn cli_clean(uninstall: bool, dry_run: bool, silent: bool, json: bool) -> i32 {
     let action = if uninstall { "uninstall" } else { "clean" };
     let note = "Program files are not removed: use the installer's uninstaller, or delete the portable folder.";

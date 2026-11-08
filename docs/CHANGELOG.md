@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Added
+- **RPN mode, phase P1 (command line).** `CalcDex rpn "2 3 + 4 *"`
+  runs HP-42S-style tokens on a 4-level stack with LASTX, stack
+  lift/ENTER, arithmetic, powers, roots, logs, trig (DEG/RAD/GRAD,
+  exact at quarter turns), hyperbolics, FACT/COMB/PERM, %, %CH,
+  MOD, named variables (STO/RCL and STO+ - * /, RCL+ - * /, CLV)
+  and FIX/SCI/ENG/ALL display. `--stack` shows T/Z/Y/X, `--json`
+  prints one JSON object, `--state NAME` keeps the stack and
+  variables between runs in `data/rpn-NAME.txt` (versioned,
+  atomic; a corrupt file is kept as `.bad`, a newer-version file
+  is never overwritten). `--clean`/`--uninstall` remove these
+  files. Numbers are f64 for now; 34-digit decimal is phase P2.
+  No window yet (phase P9). Plan: [RPN_PLAN.md](RPN_PLAN.md).
+
 ### Fixed
 - Legacy storage migration stages and flushes the complete data set before
   publication, preserving legacy storage on failure and existing foreign entries.
