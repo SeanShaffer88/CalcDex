@@ -9,6 +9,10 @@
 //! code and plain-words message, and a failing operation leaves the
 //! stack untouched.
 
+pub mod bigint;
+pub mod consts;
+pub mod dec;
+pub mod dec_math;
 pub mod display;
 pub mod state;
 
