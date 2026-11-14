@@ -1,6 +1,8 @@
 # RPN / Programmable Mode — Architecture & UX Plan
 
-Status: PLAN (no code yet). Progress 0%. No ETA until P1 lands.
+Status: P1 done (RPN core + `rpn` CLI, f64 numbers). P2–P13 not
+started. Progress: 1 of 13 phases (~8%, rough, phases differ a lot
+in size). No ETA: P4–P6 and P10–P12 are the big ones.
 Decision: scope (b) — an HP-42S-compatible RPN/programmable mode
 inside CalcDex, then the Plus42-style extras. Recorded in DECISIONS.md.
 
@@ -133,3 +135,14 @@ windows-x64).
 2. Decimal precision fallback acceptable per the risk note above?
 3. Keep Free42-compatible `.f42` state files? Default: no — own
    versioned format, with listing import/export for programs.
+
+## Known limitations after P1 (Unverified against real HP-42S)
+- SQRT of a negative real, LN of 0 or less, etc. give Invalid Data;
+  real hardware/Free42 may return complex results. Revisit in P3.
+- `0 0 Y^X` returns 1 (IEEE); hardware behaviour not checked.
+- `MOD` with divisor 0 is an error here; hardware not checked.
+- ENG n shows n+1 significant digits and no trailing point
+  (`12E-3`); the HP-42S look may differ.
+- No registers 00-99 limit, no SIZE, no complex/strings/matrices yet.
+- Behaviour checked only by this repo's tests, not by running an
+  HP-42S or Free42.
