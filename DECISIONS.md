@@ -699,3 +699,15 @@ number within the filtered subset, so --log-pin, --log-tag
 and --log-note addressing is the same from any view. The
 filtered export is chronological, like the lab record,
 because an exported record is read forwards in time.
+
+## 2026-11-07 — RPN / programmable mode (Free42 + Plus42 functionality)
+SEAN asked for the functionality of Free42 and Plus42 and said
+"proceed as you suggest". Chosen scope: (b) an HP-42S-compatible
+RPN/programmable mode inside CalcDex first, then the Plus42
+extras (equations, units, TVM, directories, plotting). Clean-room
+implementation (Free42/Plus42 are GPLv2; CalcDex stays MIT): no
+upstream source read or copied. Engine lives in a new `src/rpn/`
+beside the registry, because the registry signature is stateless,
+f64-only and scalar. Numbers: f64 first, 34-digit decimal in P2.
+Own versioned state format; program listings import/export. No UI
+code until the wireframe is approved. Plan: docs/RPN_PLAN.md.

@@ -1,4 +1,10 @@
-# Roadmap — what v0.1.1 does NOT do yet (honest list)
+# Roadmap — what CalcDex does NOT do yet (honest list)
+
+The RPN / programmable mode (Free42 + Plus42 functionality) is
+planned in [RPN_PLAN.md](RPN_PLAN.md). The lists below date from
+v0.1.1 and have not all been re-checked against v0.9.0; items
+shipped since then (dates, log, engineering, units in expressions)
+may still appear.
 
 Done since v0.1 (removed from the gap list): merged MM/DD/YYYY date
 fields with Today? buttons and end-date wording, CLI one-argument

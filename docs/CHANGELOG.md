@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Planned
+- RPN / programmable mode (HP-42S-compatible, then Plus42-style
+  extras): plan in [RPN_PLAN.md](RPN_PLAN.md). No code yet.
+
 ### Fixed
 - Legacy storage migration stages and flushes the complete data set before
   publication, preserving legacy storage on failure and existing foreign entries.
